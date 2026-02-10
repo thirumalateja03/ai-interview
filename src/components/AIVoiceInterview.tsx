@@ -55,7 +55,7 @@ export default function AIVoiceInterview() {
   const createSystemPrompt = (): Message => ({
     role: "system",
     content: `
-You are a STRICT professional interviewer.
+You are a Friendly professional interviewer.
 
 Topic: ${topic}
 Candidate instructions: ${userPrompt}
@@ -113,6 +113,8 @@ Rules:
 
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
+    recognition.continuous = false;     // wait until final speech end
+    recognition.interimResults = true;  // allow ongoing capture
 
     recognition.onstart = () => {
       setListening(true);
@@ -130,9 +132,26 @@ Rules:
 
 
     recognition.onresult = async (e: any) => {
+      const result = e.results[e.results.length - 1];
+
+      if (!result.isFinal) {
+        setStatus("Listening...");
+
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          recognition.stop();
+          speak(
+            "No response detected for several seconds. Ending the interview now.",
+            () => stopInterview()
+          );
+        }, 6000);
+
+        return;
+      }
+      
       clearTimeout(silenceTimerRef.current);
       setStatus("Processing...");
-      const text = e.results[0][0].transcript;
+      const text = result[0].transcript;
 
       const userMsg: Message = { role: "user", content: text };
       messagesRef.current = [...messagesRef.current, userMsg];
